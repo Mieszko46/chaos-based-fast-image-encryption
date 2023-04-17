@@ -4,10 +4,11 @@ import sys
 from PIL import Image
 import numpy as np
 
-CONST_N = 6
+CONST_N = 8
 CONST_EPSILON = 0.05
 CONST_B = 0.4999
 CONST_X1 = 0.78
+
 
 def getSbox(sboxArray, src):
     try:
@@ -18,10 +19,10 @@ def getSbox(sboxArray, src):
         row = 0
         while True:
             byte = file.read(1)
-            file.seek(1,1)
+            file.seek(1, 1)
             if not byte:
                 break
-            
+
             sboxArray[row] = int.from_bytes(byte, byteorder=sys.byteorder)
             row += 1
         file.close()
@@ -36,24 +37,23 @@ def calculateTentMap(x):
     if x == 1:
         x = CONST_X1
         return x
-    
+
     prevx = calculateTentMap(x - 1)
     if prevx <= CONST_B:
         return prevx / CONST_B
-    
+
     if prevx > CONST_B:
         return (1.0 - prevx) / (1.0 - CONST_B)
-        
 
-def generateNCML(index):    
-    result = ((1.0 - CONST_EPSILON) * calculateTentMap(index) + 
-        CONST_EPSILON * calculateTentMap(index + 1.0))
+
+def generateNCML(index):
+    result = ((1.0 - CONST_EPSILON) * calculateTentMap(index) +
+              CONST_EPSILON * calculateTentMap(index + 1.0))
     return result
 
 
 def encodeImage(sboxArray):
-
-    img = Image.open("./images/lena.png", 'r')    
+    img = Image.open("./images/lena.png", 'r')
     height, width = img.size
     totalBits = width * height
 
@@ -68,7 +68,7 @@ def encodeImage(sboxArray):
             data[bit] = sboxArray[data[bit]]
         data = data.reshape(width, height)
         mode = 'L'
-        
+
     else:
         channels = np.array(img).shape[2]
         for bit in range(totalBits):
@@ -116,20 +116,37 @@ def binary(num):
     return ''.join('{:0>8b}'.format(c) for c in struct.pack('!f', num))
 
 
+def function_F(a, b, c, d):
+    return ((a & b) | ((~a) & c) + d) % 256
+
+
+def function_G(a, b, c, d):
+    return ((a & c) | (b & (~c)) + d) % 256
+
+
+def function_H(a, b, c, d):
+    return ((a ^ b ^ c) + d) % 256
+
+
+def function_I(a, b, c, d):
+    return (b ^ (a | (~c)) + d) % 256
+
+
 def main():
     sboxArray = np.zeros(256, dtype=int)
     # getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
     # print(sboxArray)
 
     x = np.zeros(CONST_N)
-    a = np.zeros((8, 16))
-
-    for i in range(1, CONST_N+1):
+    A = np.zeros(16, dtype=int)
+    for i in range(1, CONST_N + 1):
         x[i - 1] = generateNCML(i)
-        print(f'x{i}: {x[i - 1]}')
-        print(f'bin x{i}: {binary(x[i - 1])}')
-        a[i] = binary(x[i - 1])[11:26]
-        print(a[i])
+        # print(f'x{i}: {x[i - 1]}')
+        # print(f'bin x{i}: {binary(x[i - 1])}')
+        print(i)
+        A[(i - 1) * 2] = int(binary(x[i - 1])[11:18], 2)
+        A[(i - 1) * 2 + 1] = int(binary(x[i - 1])[19:26], 2)
+    print(A)
 
     # encodeImage(sboxArray)
     # decodeImage(sboxArray)
