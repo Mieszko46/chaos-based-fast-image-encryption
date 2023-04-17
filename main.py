@@ -1,8 +1,13 @@
 import random
+import struct
 import sys
 from PIL import Image
 import numpy as np
 
+CONST_N = 6
+CONST_EPSILON = 0.05
+CONST_B = 0.4999
+CONST_X1 = 0.78
 
 def getSbox(sboxArray, src):
     try:
@@ -25,6 +30,25 @@ def getSbox(sboxArray, src):
 def generateInverseSbox(sboxArray):
     inverseSbox = {v: k for k, v in enumerate(sboxArray)}
     return inverseSbox
+
+
+def calculateTentMap(x):
+    if x == 1:
+        x = CONST_X1
+        return x
+    
+    prevx = calculateTentMap(x - 1)
+    if prevx <= CONST_B:
+        return prevx / CONST_B
+    
+    if prevx > CONST_B:
+        return (1.0 - prevx) / (1.0 - CONST_B)
+        
+
+def generateNCML(index):    
+    result = ((1.0 - CONST_EPSILON) * calculateTentMap(index) + 
+        CONST_EPSILON * calculateTentMap(index + 1.0))
+    return result
 
 
 def encodeImage(sboxArray):
@@ -88,12 +112,27 @@ def decodeImage(sboxArray):
     decryptedImage.save("./images/result_dec.png")
 
 
+def binary(num):
+    return ''.join('{:0>8b}'.format(c) for c in struct.pack('!f', num))
+
+
 def main():
     sboxArray = np.zeros(256, dtype=int)
-    getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
-    print(sboxArray)
-    encodeImage(sboxArray)
-    decodeImage(sboxArray)
+    # getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
+    # print(sboxArray)
+
+    x = np.zeros(CONST_N)
+    a = np.zeros((8, 16))
+
+    for i in range(1, CONST_N+1):
+        x[i - 1] = generateNCML(i)
+        print(f'x{i}: {x[i - 1]}')
+        print(f'bin x{i}: {binary(x[i - 1])}')
+        a[i] = binary(x[i - 1])[11:26]
+        print(a[i])
+
+    # encodeImage(sboxArray)
+    # decodeImage(sboxArray)
 
 
 if __name__ == '__main__':
