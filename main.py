@@ -3,6 +3,7 @@ import struct
 import sys
 from PIL import Image
 import numpy as np
+import copy
 
 CONST_N = 8
 CONST_EPSILON = 0.05
@@ -132,18 +133,31 @@ def function_I(a, b, c, d):
     return (b ^ (a | (~c)) + d) % 256
 
 
+def shiftArrayToRight(A):
+    A_copy = copy.deepcopy(A)
+    A_copy = np.insert(A_copy, 0, A_copy[len(A_copy) - 1])
+    A_copy = np.delete(A_copy, len(A_copy) - 1)
+    return A_copy
+
+
 def generateArrayS(A):
-    s = np.zeros(16, dtype=int)
-    for i in range(16):
-        if i % 4 == 0:
-            s[i] = function_F(A[i], A[i + 1], A[i + 2], A[i + 3])
-        elif i % 4 == 1:
-            s[i] = function_G(A[i], A[i + 1], A[i + 2], A[i - 1])
-        elif i % 4 == 2:
-            s[i] = function_H(A[i], A[i + 1], A[i - 2], A[i - 1])
-        elif i % 4 == 3:
-            s[i] = function_I(A[i], A[i - 3], A[i - 2], A[i - 1])
-    return s
+    A_copy = copy.deepcopy(A)
+    s = []
+    for i in range(4):
+        temp = np.zeros(16, dtype=int)
+        # print(A_copy)
+        for i in range(16):
+            if i % 4 == 0:
+                temp[i] = function_F(A_copy[i], A_copy[i + 1], A_copy[i + 2], A_copy[i + 3])
+            elif i % 4 == 1:
+                temp[i] = function_G(A_copy[i], A_copy[i + 1], A_copy[i + 2], A_copy[i - 1])
+            elif i % 4 == 2:
+                temp[i] = function_H(A_copy[i], A_copy[i + 1], A_copy[i - 2], A_copy[i - 1])
+            elif i % 4 == 3:
+                temp[i] = function_I(A_copy[i], A_copy[i - 3], A_copy[i - 2], A_copy[i - 1])
+        s.append(temp)
+        A_copy = shiftArrayToRight(A_copy)
+    return np.array(s)
 
 
 def main():
@@ -159,8 +173,8 @@ def main():
         # print(f'bin x{i}: {binary(x[i - 1])}')
         A[(i - 1) * 2] = int(binary(x[i - 1])[11:18], 2)
         A[(i - 1) * 2 + 1] = int(binary(x[i - 1])[19:26], 2)
-    print(A)
-    print(generateArrayS(A))
+    # print(A)
+    print("Array S: " + str(generateArrayS(A)))
 
     # encodeImage(sboxArray)
     # decodeImage(sboxArray)
