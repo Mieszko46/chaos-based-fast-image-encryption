@@ -4,6 +4,7 @@ import sys
 from PIL import Image
 import numpy as np
 import copy
+from datetime import datetime
 
 CONST_N = 8
 CONST_EPSILON = 0.05
@@ -155,16 +156,26 @@ def generateArrayS(A):
                 temp[i] = function_H(A_copy[i], A_copy[i + 1], A_copy[i - 2], A_copy[i - 1])
             elif i % 4 == 3:
                 temp[i] = function_I(A_copy[i], A_copy[i - 3], A_copy[i - 2], A_copy[i - 1])
-        s.append(temp)
+        s = np.concatenate((s, temp), axis=0)
         A_copy = shiftArrayToRight(A_copy)
-    return np.array(s)
+    return np.array(s, dtype=int)
+
+
+def generateArrayR(S, sbox):
+    R = np.zeros(64, dtype=int)
+    print(sbox.shape)
+    print(S.shape)
+    for i in range(len(S)):
+        R[i] = ((sbox[S[i]] ^ (sbox[S[i] + 1 % 64])) + (sbox[(S[i] + 2) % 64] ^ sbox[(S[i] + 3) % 64])) % 256
+    return R
 
 
 def main():
     sboxArray = np.zeros(256, dtype=int)
-    # getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
+    getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
     # print(sboxArray)
 
+    time = datetime.now()
     x = np.zeros(CONST_N)
     A = np.zeros(16, dtype=int)
     for i in range(1, CONST_N + 1):
@@ -174,8 +185,10 @@ def main():
         A[(i - 1) * 2] = int(binary(x[i - 1])[11:18], 2)
         A[(i - 1) * 2 + 1] = int(binary(x[i - 1])[19:26], 2)
     # print(A)
-    print("Array S: " + str(generateArrayS(A)))
-
+    S = generateArrayS(A)
+    R = generateArrayR(S, sboxArray)
+    print("Array S: " + str(S))
+    print("Array R: " + str(R))
     # encodeImage(sboxArray)
     # decodeImage(sboxArray)
 
