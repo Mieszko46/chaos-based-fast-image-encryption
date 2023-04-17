@@ -132,6 +132,20 @@ def function_I(a, b, c, d):
     return (b ^ (a | (~c)) + d) % 256
 
 
+def generateArrayS(A):
+    s = np.zeros(16, dtype=int)
+    for i in range(16):
+        if i % 4 == 0:
+            s[i] = function_F(A[i], A[i + 1], A[i + 2], A[i + 3])
+        elif i % 4 == 1:
+            s[i] = function_G(A[i], A[i + 1], A[i + 2], A[i - 1])
+        elif i % 4 == 2:
+            s[i] = function_H(A[i], A[i + 1], A[i - 2], A[i - 1])
+        elif i % 4 == 3:
+            s[i] = function_I(A[i], A[i - 3], A[i - 2], A[i - 1])
+    return s
+
+
 def main():
     sboxArray = np.zeros(256, dtype=int)
     # getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
@@ -143,10 +157,10 @@ def main():
         x[i - 1] = generateNCML(i)
         # print(f'x{i}: {x[i - 1]}')
         # print(f'bin x{i}: {binary(x[i - 1])}')
-        print(i)
         A[(i - 1) * 2] = int(binary(x[i - 1])[11:18], 2)
         A[(i - 1) * 2 + 1] = int(binary(x[i - 1])[19:26], 2)
     print(A)
+    print(generateArrayS(A))
 
     # encodeImage(sboxArray)
     # decodeImage(sboxArray)
