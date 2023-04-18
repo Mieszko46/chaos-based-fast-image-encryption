@@ -180,6 +180,30 @@ def calculateKNew(x0, num):
     return np.floor(x0 * num)
 
 
+# Assumes that block full of -1 is unoccupied
+def isNotOccupied(array, kNew):
+    arr = copy.deepcopy(array)
+    arr = np.array(arr)
+    temp = np.zeros((arr.shape[1], arr.shape[2]), dtype=int) - 1
+    if np.equal(array[kNew, :, :], temp):
+        return True
+    else:
+        return False
+
+
+def switchBlocks(block, kNew, kL, encryptedBlocks, num):
+    if kNew != kL and isNotOccupied(encryptedBlocks, kNew):
+        encryptedBlocks[kNew, :, :] = block
+    else:
+        while True:
+            kNew = (kNew + 1) % num
+            if isNotOccupied(encryptedBlocks, kNew):
+                encryptedBlocks[kNew, :, :] = block
+                break
+            else:
+                continue
+
+
 def encryptImage(sboxArray):
     img = Image.open("./images/lena.png", 'r')
     height, width = img.size
@@ -238,37 +262,37 @@ def encryptImage(sboxArray):
                 y = decimalLSB3(x) * (int(C[k][i - 1][(j - 1) % 8]) ^ int(randomNumbers[i][j]))
                 C[k][i][j] = leftCyclicShift(int(x), int(y))
 
-    # (iii)
+                # (iii)
 
-    # End of loop from Step 3
+                # End of loop from Step 3
 
-    # I_prim = I
-    # r_counter = 0
-    # for index in range(totalBits):
-    #     while True:
-    #         if r * index > totalBits:
-    #             break
-    #         else    
-    #             I
-    #             index += 1
-    # try:
-    #     np.array(img).shape[2]
+                # I_prim = I
+                # r_counter = 0
+                # for index in range(totalBits):
+                #     while True:
+                #         if r * index > totalBits:
+                #             break
+                #         else
+                #             I
+                #             index += 1
+                # try:
+                #     np.array(img).shape[2]
 
-    # except:
-    #     for bit in range(totalBits):
-    #         data[bit] = sboxArray[data[bit]]
-    #     data = data.reshape(width, height)
-    #     mode = 'L'
+                # except:
+                #     for bit in range(totalBits):
+                #         data[bit] = sboxArray[data[bit]]
+                #     data = data.reshape(width, height)
+                #     mode = 'L'
 
-    # else:
-    #     channels = np.array(img).shape[2]
-    #     for bit in range(totalBits):
-    #         for c in range(channels):
-    #             data[bit][c] = sboxArray[data[bit][c]]
-    #     data = data.reshape(width, height, channels)
-    #     mode = img.mode
-                x = ((int(B[k][i][j]) ^ int(randomNumbers[i][j])) + C[k][i-1][j]) % G
-                y = decimalLSB3(x) * (int(C[k][i-1][(j-1)%8]) ^ int(randomNumbers[i][j]))
+                # else:
+                #     channels = np.array(img).shape[2]
+                #     for bit in range(totalBits):
+                #         for c in range(channels):
+                #             data[bit][c] = sboxArray[data[bit][c]]
+                #     data = data.reshape(width, height, channels)
+                #     mode = img.mode
+                x = ((int(B[k][i][j]) ^ int(randomNumbers[i][j])) + C[k][i - 1][j]) % G
+                y = decimalLSB3(x) * (int(C[k][i - 1][(j - 1) % 8]) ^ int(randomNumbers[i][j]))
                 C[k][i][j] = leftCyclicShift(int(x), int(y))
     # print(C)
 
