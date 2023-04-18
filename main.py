@@ -41,9 +41,7 @@ def calculateTentMap(x):
         return (1.0 - x) / (1.0 - CONST_B)
 
 
-def generateNCML():
-    x = np.random.rand(CONST_N)
-
+def generateNCML(x):
     for n in range(CONST_TIME_ITER):
         x_new = np.copy(x)
         for i in range(CONST_N):
@@ -51,66 +49,6 @@ def generateNCML():
               CONST_EPSILON * calculateTentMap(x[(i + 1) % CONST_N]))
         x = x_new
     return x
-
-
-def encodeImage(sboxArray):
-    img = Image.open("./images/lena.png", 'r')
-    height, width = img.size
-    totalBits = width * height
-
-    data = np.array(list(img.getdata()), dtype=int)
-
-    # obrazy w odcieniach szarości są jednowymiarową tablicą, nie dwu, dlatego try catch na kanały w obrazie
-    try:
-        np.array(img).shape[2]
-
-    except:
-        for bit in range(totalBits):
-            data[bit] = sboxArray[data[bit]]
-        data = data.reshape(width, height)
-        mode = 'L'
-
-    else:
-        channels = np.array(img).shape[2]
-        for bit in range(totalBits):
-            for c in range(channels):
-                data[bit][c] = sboxArray[data[bit][c]]
-        data = data.reshape(width, height, channels)
-        mode = img.mode
-
-    encryptedImage = Image.fromarray(data.astype('uint8'), mode)
-    encryptedImage.save("./images/result_enc.png")
-
-
-def decodeImage(sboxArray):
-    img = Image.open("./images/result_enc.png", 'r')
-    height, width = img.size
-    totalBits = width * height
-
-    data = np.array(list(img.getdata()), dtype=int)
-    # getSbox(sboxArray, ".\sblocks\sbox_08x08_20130117_030729___Inverse.SBX")
-    # inverseSbox = sboxArray
-    inverseSbox = generateInverseSbox(sboxArray)
-
-    try:
-        np.array(img).shape[2]
-
-    except:
-        for bit in range(totalBits):
-            data[bit] = inverseSbox[data[bit]]
-        data = data.reshape(width, height)
-        mode = 'L'
-
-    else:
-        channels = np.array(img).shape[2]
-        for bit in range(totalBits):
-            for c in range(channels):
-                data[bit][c] = inverseSbox[data[bit][c]]
-        data = data.reshape(width, height, channels)
-        mode = img.mode
-
-    decryptedImage = Image.fromarray(data.astype('uint8'), mode)
-    decryptedImage.save("./images/result_dec.png")
 
 
 def binary(num):
@@ -165,31 +103,164 @@ def generateArrayR(S, sbox):
     # print(sbox.shape)
     # print(S.shape)
     for i in range(len(S)):
-        R[i] = ((sbox[S[i]] ^ (sbox[S[i] + 1 % 64])) + (sbox[(S[i] + 2) % 64] ^ sbox[(S[i] + 3) % 64])) % 256
+        R[i] = ((sbox[S[i]] ^ (sbox[(S[i] + 1) % 64])) + (sbox[(S[i] + 2) % 64] ^ sbox[(S[i] + 3) % 64])) % 256
     return R
+
+
+def generateKey():
+    return np.random.randint(0, 10, size=16)
+
+
+def calculate_kl(key, num):
+    Ki = key[0]
+    for K_next in key[1:]:
+        Ki = Ki ^ K_next
+    return np.floor(Ki * (num / 256))
+    
+
+def calculate_r(key, totalBits):
+    Ki = key[0]
+    for K_next in key[1:]:
+        Ki = Ki + K_next
+    return (Ki % totalBits)
+
+
+def generatePseudoRandomNumbers(iterate, sboxArray):
+    # time = datetime.now()
+    x_init = np.random.rand(CONST_N)
+    A = np.zeros(16, dtype=int)
+
+    for loop in range(iterate):
+        x_array = generateNCML(x_init)
+        for i in range(len(x_array)):
+            A[i * 2] = int(binary(x_array[i])[11:18], 2)
+            A[i * 2 + 1] = int(binary(x_array[i])[19:26], 2)
+        x_init = x_array
+
+    # print("Array A: ", A)
+    S = generateArrayS(A)
+    R = generateArrayR(S, sboxArray)
+    # print("Array S: " + str(S))
+    # print("Array R: " + str(R))
+    return R
+
+
+def leftBitShift(bitIndex, sequence):
+    print("TODO")
+
+
+def encryptImage(sboxArray):
+    img = Image.open("./images/lena.png", 'r')
+    height, width = img.size
+    totalBits = width * height
+
+    # Step 1
+    K = generateKey()
+    print("Key K: ", K)
+    num = int(totalBits / 64)
+    kl = calculate_kl(K, num)
+    print("kl: ", kl)
+    r = calculate_r(K, totalBits)
+    print("r: ", r)
+
+    # Step 2
+    x0_init = np.zeros(CONST_N)
+    for i in range(CONST_N):
+        x0_init[i] = (K[i] + 0.1) / 256
+    print("init array: ", x0_init)
+    x_array = generateNCML(x0_init)
+    print("N0 NCML: ", x_array)
+
+    # Step 3  what the fck is going on in this step
+    I = np.array(img.getdata(), dtype=int)
+    # print(I.shape)
+
+    # pseudo Step 3 (remove hen Step 3 will be finished)
+    B = np.zeros((num, 8, 8))
+    for i in range(num):
+        B[i] = np.random.randint(0, 255, size=(8, 8))
+    # print(B.shape)
+
+    # Step 4 (i)
+    randomNumbers = generatePseudoRandomNumbers(1, sboxArray)
+    randomNumbers = np.reshape(randomNumbers, (8, 8))
+
+    # (ii)
+    C = np.zeros((num, 8, 8))
+    G = len(np.unique(I))
+    for k in range(num - 1):
+        for i in range(8):
+            for j in range(8):
+                C[i][j] = leftBitShift()
+                
+
+    # I_prim = I
+    # r_counter = 0
+    # for index in range(totalBits):
+    #     while True:
+    #         if r * index > totalBits:
+    #             break
+    #         else    
+    #             I
+    #             index += 1
+    # try:
+    #     np.array(img).shape[2]
+
+    # except:
+    #     for bit in range(totalBits):
+    #         data[bit] = sboxArray[data[bit]]
+    #     data = data.reshape(width, height)
+    #     mode = 'L'
+
+    # else:
+    #     channels = np.array(img).shape[2]
+    #     for bit in range(totalBits):
+    #         for c in range(channels):
+    #             data[bit][c] = sboxArray[data[bit][c]]
+    #     data = data.reshape(width, height, channels)
+    #     mode = img.mode
+
+    # encryptedImage = Image.fromarray(data.astype('uint8'), mode)
+    # encryptedImage.save("./images/result_enc.png")
+
+
+def decryptImage(sboxArray):
+    img = Image.open("./images/result_enc.png", 'r')
+    height, width = img.size
+    totalBits = width * height
+
+    data = np.array(list(img.getdata()), dtype=int)
+    # getSbox(sboxArray, ".\sblocks\sbox_08x08_20130117_030729___Inverse.SBX")
+    # inverseSbox = sboxArray
+    inverseSbox = generateInverseSbox(sboxArray)
+
+    try:
+        np.array(img).shape[2]
+
+    except:
+        for bit in range(totalBits):
+            data[bit] = inverseSbox[data[bit]]
+        data = data.reshape(width, height)
+        mode = 'L'
+
+    else:
+        channels = np.array(img).shape[2]
+        for bit in range(totalBits):
+            for c in range(channels):
+                data[bit][c] = inverseSbox[data[bit][c]]
+        data = data.reshape(width, height, channels)
+        mode = img.mode
+
+    decryptedImage = Image.fromarray(data.astype('uint8'), mode)
+    decryptedImage.save("./images/result_dec.png")
 
 
 def main():
     sboxArray = np.zeros(256, dtype=int)
     getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
     # print(sboxArray)
-
-    # time = datetime.now()
-    x_array = np.zeros(CONST_N)
-    A = np.zeros(16, dtype=int)
-
-    x_array = generateNCML()
-    for i in range(len(x_array)):
-        A[i * 2] = int(binary(x_array[i])[11:18], 2)
-        A[i * 2 + 1] = int(binary(x_array[i])[19:26], 2)
-        # print(A)
-    print('Array A:', A)
-    S = generateArrayS(A)
-    R = generateArrayR(S, sboxArray)
-    print("Array S: " + str(S))
-    print("Array R: " + str(R))
-    # encodeImage(sboxArray)
-    # decodeImage(sboxArray)
+    encryptImage(sboxArray)
+    # decryptImage(sboxArray)
 
 
 if __name__ == '__main__':
