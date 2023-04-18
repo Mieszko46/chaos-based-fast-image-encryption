@@ -46,7 +46,7 @@ def generateNCML(x):
         x_new = np.copy(x)
         for i in range(CONST_N):
             x_new[i] = ((1.0 - CONST_EPSILON) * calculateTentMap(x[i]) +
-              CONST_EPSILON * calculateTentMap(x[(i + 1) % CONST_N]))
+                        CONST_EPSILON * calculateTentMap(x[(i + 1) % CONST_N]))
         x = x_new
     return x
 
@@ -116,7 +116,7 @@ def calculate_kl(key, num):
     for K_next in key[1:]:
         Ki = Ki ^ K_next
     return np.floor(Ki * (num / 256))
-    
+
 
 def calculate_r(key, totalBits):
     Ki = key[0]
@@ -192,7 +192,6 @@ def encryptImage(sboxArray):
         for i in range(8):
             for j in range(8):
                 C[i][j] = leftBitShift()
-                
 
     # I_prim = I
     # r_counter = 0
@@ -255,11 +254,33 @@ def decryptImage(sboxArray):
     decryptedImage.save("./images/result_dec.png")
 
 
+def blockshaped(arr, nrows, ncols):
+    """
+    Return an array of shape (n, nrows, ncols) where
+    n * nrows * ncols = arr.size
+
+    If arr is a 2D array, the returned array should look like n subblocks with
+    each subblock preserving the "physical" layout of arr.
+    First dim is the index of block, second is row and third column
+    """
+    h, w = arr.shape
+    assert h % nrows == 0, f"{h} rows is not evenly divisible by {nrows}"
+    assert w % ncols == 0, f"{w} cols is not evenly divisible by {ncols}"
+    return np.array((arr.reshape(h // nrows, nrows, -1, ncols)
+                     .swapaxes(1, 2)
+                     .reshape(-1, nrows, ncols)))
+
+
 def main():
     sboxArray = np.zeros(256, dtype=int)
     getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
     # print(sboxArray)
-    encryptImage(sboxArray)
+    # encryptImage(sboxArray)
+    img = Image.open("images/lena.png", 'r')
+    img = np.array(img)
+    img2 = blockshaped(img[:, :, 0], 8, 8)
+    a = img2
+    # b = img2.reshape((8, 8, img2.shape[0] * img2.shape[1]))
     # decryptImage(sboxArray)
 
 
