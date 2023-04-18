@@ -145,8 +145,35 @@ def generatePseudoRandomNumbers(iterate, sboxArray):
     return R
 
 
-def leftBitShift(bitIndex, sequence):
-    print("TODO")
+def blockshaped(arr, nrows, ncols):
+    """
+    Return an array of shape (n, nrows, ncols) where
+    n * nrows * ncols = arr.size
+
+    If arr is a 2D array, the returned array should look like n subblocks with
+    each subblock preserving the "physical" layout of arr.
+    First dim is the index of block, second is row and third column
+    """
+    h, w = arr.shape
+    assert h % nrows == 0, f"{h} rows is not evenly divisible by {nrows}"
+    assert w % ncols == 0, f"{w} cols is not evenly divisible by {ncols}"
+    return np.array((arr.reshape(h // nrows, nrows, -1, ncols)
+                     .swapaxes(1, 2)
+                     .reshape(-1, nrows, ncols)))
+
+
+def decimalLSB3(x):
+    bin = format(int(x), '08b')
+    return int(bin[-3:], 2)
+
+
+def leftCyclicShift(shift, sequence):
+    if sequence == 0:
+        return sequence
+    sequence_bits = sequence.bit_length()
+    shift = shift % sequence_bits
+    shifted_num = ((sequence << shift) | (sequence >> (sequence_bits - shift))) & ((1 << sequence_bits) - 1)
+    return shifted_num
 
 
 def encryptImage(sboxArray):
@@ -171,53 +198,37 @@ def encryptImage(sboxArray):
     x_array = generateNCML(x0_init)
     print("N0 NCML: ", x_array)
 
-    # Step 3  what the fck is going on in this step
-    I = np.array(img.getdata(), dtype=int)
-    # print(I.shape)
+    # Step 3
+    I = np.array(img)
+    I_prim = blockshaped(I[:, :, 0], 8, 8)
+    B = I_prim
+    # b = img2.reshape((8, 8, img2.shape[0] * img2.shape[1]))
 
     # pseudo Step 3 (remove hen Step 3 will be finished)
-    B = np.zeros((num, 8, 8))
-    for i in range(num):
-        B[i] = np.random.randint(0, 255, size=(8, 8))
+    # B = np.zeros((num, 8, 8))
+    # for i in range(num):
+    #     B[i] = np.random.randint(0, 255, size=(8, 8))
     # print(B.shape)
 
     # Step 4 (i)
     randomNumbers = generatePseudoRandomNumbers(1, sboxArray)
     randomNumbers = np.reshape(randomNumbers, (8, 8))
 
+    # print(B)
+
     # (ii)
-    C = np.zeros((num, 8, 8))
+    C = np.zeros((num, 8, 8), dtype=int)
     G = len(np.unique(I))
-    for k in range(num - 1):
+    for k in range(num):
+        if k == 0:
+            for j in range(8):
+                C[k][0][j] = K[j+8]
         for i in range(8):
             for j in range(8):
-                C[i][j] = leftBitShift()
-
-    # I_prim = I
-    # r_counter = 0
-    # for index in range(totalBits):
-    #     while True:
-    #         if r * index > totalBits:
-    #             break
-    #         else    
-    #             I
-    #             index += 1
-    # try:
-    #     np.array(img).shape[2]
-
-    # except:
-    #     for bit in range(totalBits):
-    #         data[bit] = sboxArray[data[bit]]
-    #     data = data.reshape(width, height)
-    #     mode = 'L'
-
-    # else:
-    #     channels = np.array(img).shape[2]
-    #     for bit in range(totalBits):
-    #         for c in range(channels):
-    #             data[bit][c] = sboxArray[data[bit][c]]
-    #     data = data.reshape(width, height, channels)
-    #     mode = img.mode
+                x = ((int(B[k][i][j]) ^ int(randomNumbers[i][j])) + C[k][i-1][j]) % G
+                y = decimalLSB3(x) * (int(C[k][i-1][(j-1)%8]) ^ int(randomNumbers[i][j]))
+                C[k][i][j] = leftCyclicShift(int(x), int(y))
+    # print(C)
 
     # encryptedImage = Image.fromarray(data.astype('uint8'), mode)
     # encryptedImage.save("./images/result_enc.png")
@@ -254,33 +265,11 @@ def decryptImage(sboxArray):
     decryptedImage.save("./images/result_dec.png")
 
 
-def blockshaped(arr, nrows, ncols):
-    """
-    Return an array of shape (n, nrows, ncols) where
-    n * nrows * ncols = arr.size
-
-    If arr is a 2D array, the returned array should look like n subblocks with
-    each subblock preserving the "physical" layout of arr.
-    First dim is the index of block, second is row and third column
-    """
-    h, w = arr.shape
-    assert h % nrows == 0, f"{h} rows is not evenly divisible by {nrows}"
-    assert w % ncols == 0, f"{w} cols is not evenly divisible by {ncols}"
-    return np.array((arr.reshape(h // nrows, nrows, -1, ncols)
-                     .swapaxes(1, 2)
-                     .reshape(-1, nrows, ncols)))
-
-
 def main():
     sboxArray = np.zeros(256, dtype=int)
     getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
     # print(sboxArray)
-    # encryptImage(sboxArray)
-    img = Image.open("images/lena.png", 'r')
-    img = np.array(img)
-    img2 = blockshaped(img[:, :, 0], 8, 8)
-    a = img2
-    # b = img2.reshape((8, 8, img2.shape[0] * img2.shape[1]))
+    encryptImage(sboxArray)
     # decryptImage(sboxArray)
 
 
