@@ -176,6 +176,10 @@ def leftCyclicShift(shift, sequence):
     return shifted_num
 
 
+def calculateKNew(x0, num):
+    return np.floor(x0 * num)
+
+
 def encryptImage(sboxArray):
     img = Image.open("./images/lena.png", 'r')
     height, width = img.size
@@ -198,11 +202,16 @@ def encryptImage(sboxArray):
     x_array = generateNCML(x0_init)
     print("N0 NCML: ", x_array)
 
-    # Step 3
-    I = np.array(img)
-    I_prim = blockshaped(I[:, :, 0], 8, 8)
-    B = I_prim
     # b = img2.reshape((8, 8, img2.shape[0] * img2.shape[1]))
+    # Loop for encoding each block, it will be needed
+    # for i in range(num):
+    # Step 3  what the fck is going on in this step
+    I = np.array(img)
+    blocksR = blockshaped(I[:, :, 0], 8, 8)
+    blocksG = blockshaped(I[:, :, 1], 8, 8)
+    blocksB = blockshaped(I[:, :, 2], 8, 8)
+    B = np.stack((blocksR, blocksG, blocksB), axis=3)
+    # print(I.shape)
 
     # pseudo Step 3 (remove hen Step 3 will be finished)
     # B = np.zeros((num, 8, 8))
@@ -222,9 +231,42 @@ def encryptImage(sboxArray):
     for k in range(num):
         if k == 0:
             for j in range(8):
-                C[k][0][j] = K[j+8]
+                C[k][0][j] = K[j + 8]
         for i in range(8):
             for j in range(8):
+                x = ((int(B[k][i][j]) ^ int(randomNumbers[i][j])) + C[k][i - 1][j]) % G
+                y = decimalLSB3(x) * (int(C[k][i - 1][(j - 1) % 8]) ^ int(randomNumbers[i][j]))
+                C[k][i][j] = leftCyclicShift(int(x), int(y))
+
+    # (iii)
+
+    # End of loop from Step 3
+
+    # I_prim = I
+    # r_counter = 0
+    # for index in range(totalBits):
+    #     while True:
+    #         if r * index > totalBits:
+    #             break
+    #         else    
+    #             I
+    #             index += 1
+    # try:
+    #     np.array(img).shape[2]
+
+    # except:
+    #     for bit in range(totalBits):
+    #         data[bit] = sboxArray[data[bit]]
+    #     data = data.reshape(width, height)
+    #     mode = 'L'
+
+    # else:
+    #     channels = np.array(img).shape[2]
+    #     for bit in range(totalBits):
+    #         for c in range(channels):
+    #             data[bit][c] = sboxArray[data[bit][c]]
+    #     data = data.reshape(width, height, channels)
+    #     mode = img.mode
                 x = ((int(B[k][i][j]) ^ int(randomNumbers[i][j])) + C[k][i-1][j]) % G
                 y = decimalLSB3(x) * (int(C[k][i-1][(j-1)%8]) ^ int(randomNumbers[i][j]))
                 C[k][i][j] = leftCyclicShift(int(x), int(y))
@@ -269,7 +311,12 @@ def main():
     sboxArray = np.zeros(256, dtype=int)
     getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
     # print(sboxArray)
-    encryptImage(sboxArray)
+    # encryptImage(sboxArray)
+    img = Image.open("images/lena.png", 'r')
+    img = np.array(img)
+    img2 = blockshaped(img[:, :, 0], 8, 8)
+    a = img2
+    # b = img2.reshape((8, 8, img2.shape[0] * img2.shape[1]))
     # decryptImage(sboxArray)
 
 
