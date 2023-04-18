@@ -1,4 +1,3 @@
-import random
 import struct
 import sys
 from PIL import Image
@@ -9,7 +8,7 @@ from datetime import datetime
 CONST_N = 8
 CONST_EPSILON = 0.05
 CONST_B = 0.4999
-CONST_X1 = 0.78
+CONST_TIME_ITER = 100
 
 
 def getSbox(sboxArray, src):
@@ -36,22 +35,22 @@ def generateInverseSbox(sboxArray):
 
 
 def calculateTentMap(x):
-    if x == 1:
-        x = CONST_X1
-        return x
-
-    prevx = calculateTentMap(x - 1)
-    if prevx <= CONST_B:
-        return prevx / CONST_B
-
-    if prevx > CONST_B:
-        return (1.0 - prevx) / (1.0 - CONST_B)
+    if x <= CONST_B:
+        return x / CONST_B
+    else:
+        return (1.0 - x) / (1.0 - CONST_B)
 
 
-def generateNCML(index):
-    result = ((1.0 - CONST_EPSILON) * calculateTentMap(index) +
-              CONST_EPSILON * calculateTentMap(index + 1.0))
-    return result
+def generateNCML():
+    x = np.random.rand(CONST_N)
+
+    for n in range(CONST_TIME_ITER):
+        x_new = np.copy(x)
+        for i in range(CONST_N):
+            x_new[i] = ((1.0 - CONST_EPSILON) * calculateTentMap(x[i]) +
+              CONST_EPSILON * calculateTentMap(x[(i + 1) % CONST_N]))
+        x = x_new
+    return x
 
 
 def encodeImage(sboxArray):
@@ -163,8 +162,8 @@ def generateArrayS(A):
 
 def generateArrayR(S, sbox):
     R = np.zeros(64, dtype=int)
-    print(sbox.shape)
-    print(S.shape)
+    # print(sbox.shape)
+    # print(S.shape)
     for i in range(len(S)):
         R[i] = ((sbox[S[i]] ^ (sbox[S[i] + 1 % 64])) + (sbox[(S[i] + 2) % 64] ^ sbox[(S[i] + 3) % 64])) % 256
     return R
@@ -175,16 +174,16 @@ def main():
     getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
     # print(sboxArray)
 
-    time = datetime.now()
-    x = np.zeros(CONST_N)
+    # time = datetime.now()
+    x_array = np.zeros(CONST_N)
     A = np.zeros(16, dtype=int)
-    for i in range(1, CONST_N + 1):
-        x[i - 1] = generateNCML(i)
-        # print(f'x{i}: {x[i - 1]}')
-        # print(f'bin x{i}: {binary(x[i - 1])}')
-        A[(i - 1) * 2] = int(binary(x[i - 1])[11:18], 2)
-        A[(i - 1) * 2 + 1] = int(binary(x[i - 1])[19:26], 2)
-    # print(A)
+
+    x_array = generateNCML()
+    for i in range(len(x_array)):
+        A[i * 2] = int(binary(x_array[i])[11:18], 2)
+        A[i * 2 + 1] = int(binary(x_array[i])[19:26], 2)
+        # print(A)
+    print('Array A:', A)
     S = generateArrayS(A)
     R = generateArrayR(S, sboxArray)
     print("Array S: " + str(S))
