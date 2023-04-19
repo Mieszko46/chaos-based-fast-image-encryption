@@ -4,7 +4,6 @@ from PIL import Image
 import numpy as np
 import copy
 
-
 CONST_N = 8
 CONST_EPSILON = 0.05
 CONST_B = 0.4999
@@ -163,6 +162,20 @@ def blockshaped(arr, nrows, ncols):
                      .reshape(-1, nrows, ncols)))
 
 
+def unblockshaped(arr, h, w):
+    """
+    Return an array of shape (h, w) where
+    h * w = arr.size
+
+    If arr is of shape (n, nrows, ncols), n sublocks of shape (nrows, ncols),
+    then the returned array preserves the "physical" layout of the sublocks.
+    """
+    n, nrows, ncols = arr.shape
+    return (arr.reshape(h // nrows, -1, nrows, ncols)
+            .swapaxes(1, 2)
+            .reshape(h, w))
+
+
 def decimalLSB3(x):
     bin = format(int(x), '08b')
     return int(bin[-3:], 2)
@@ -184,16 +197,20 @@ def calculateKNew(x0, num):
 # Assumes that block full of -1 is unoccupied
 def isNotOccupied(array, kNew):
     arr = copy.deepcopy(array)
-    arr = np.array(arr)
-    temp = np.zeros((arr.shape[0], arr.shape[1]), dtype=int) - 1
-    if np.equal(array[int(kNew), :], temp):
+    arr = np.array(arr, dtype=int)
+    temp = np.zeros((arr.shape[1], arr.shape[2]), dtype=int) - 1
+    checkedBlock = np.array(arr[int(kNew), :, :], dtype=int)
+    if (checkedBlock == temp).all():
+        # print(True)
         return True
     else:
+        # print(False)
         return False
 
 
 def switchBlocks(block, kNew, kL, encryptedBlocks, num):
     # print("knew: ", kNew, kL)
+    kNew = int(kNew)
     if kNew != kL and isNotOccupied(encryptedBlocks, kNew):
         encryptedBlocks[kNew, :, :] = block
     else:
@@ -211,7 +228,14 @@ def encryptImage(sboxArray):
     height, width = img.size
     totalBits = width * height
 
-    encryptedImage = np.zeros((512, 512, 3))-1
+    encryptedImage = np.zeros((512, 512, 3)) - 1
+    encryptedR = encryptedImage[:, :, 0]
+    encryptedG = encryptedImage[:, :, 1]
+    encryptedB = encryptedImage[:, :, 2]
+    encryptedR = blockshaped(encryptedR, 8, 8)
+    encryptedG = blockshaped(encryptedG, 8, 8)
+    encryptedB = blockshaped(encryptedB, 8, 8)
+    encryptedImage = np.stack((encryptedR, encryptedG, encryptedB), axis=3)
 
     # Step 1
     K = generateKey()
@@ -268,9 +292,9 @@ def encryptImage(sboxArray):
                     y = decimalLSB3(x) * (int(C[k][i - 1][(j - 1) % 8][c]) ^ int(randomNumbers[i][j]))
                     C[k][i][j][c] = leftCyclicShift(int(x), int(y))
         for c in range(3):
-            switchBlocks(C[k], calculateKNew(X0, num), kl, encryptedImage[:,:,c], num)
+            switchBlocks(C[k, :, :, c], calculateKNew(X0, num), kl, encryptedImage[:, :, :, c], num)
 
-    print(encryptedImage)                
+    print(encryptedImage)
     # print(C)
 
     # encryptedImage = Image.fromarray(data.astype('uint8'), mode)
