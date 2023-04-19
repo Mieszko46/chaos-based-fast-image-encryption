@@ -170,6 +170,7 @@ def unblockshaped(arr, h, w):
     If arr is of shape (n, nrows, ncols), n sublocks of shape (nrows, ncols),
     then the returned array preserves the "physical" layout of the sublocks.
     """
+    print(arr.shape)
     n, nrows, ncols = arr.shape
     return (arr.reshape(h // nrows, -1, nrows, ncols)
             .swapaxes(1, 2)
@@ -194,29 +195,21 @@ def calculateKNew(x0, num):
     return np.floor(x0 * num)
 
 
-# Assumes that block full of -1 is unoccupied
-def isNotOccupied(array, kNew):
-    arr = copy.deepcopy(array)
-    arr = np.array(arr, dtype=int)
-    temp = np.zeros((arr.shape[1], arr.shape[2]), dtype=int) - 1
-    checkedBlock = np.array(arr[int(kNew), :, :], dtype=int)
-    if (checkedBlock == temp).all():
-        # print(True)
+def isNotOccupied(blockValue):
+    if blockValue == -1:
         return True
-    else:
-        # print(False)
-        return False
+    return False
 
 
 def switchBlocks(block, kNew, kL, encryptedBlocks, num):
     # print("knew: ", kNew, kL)
     kNew = int(kNew)
-    if kNew != kL and isNotOccupied(encryptedBlocks, kNew):
+    if kNew != kL and isNotOccupied(encryptedBlocks[kNew][0][0]):
         encryptedBlocks[kNew, :, :] = block
     else:
         while True:
             kNew = (kNew + 1) % num
-            if isNotOccupied(encryptedBlocks, kNew):
+            if isNotOccupied(encryptedBlocks[kNew][0][0]):
                 encryptedBlocks[kNew, :, :] = block
                 break
             else:
@@ -227,6 +220,7 @@ def encryptImage(sboxArray):
     img = Image.open("./images/lena.png", 'r')
     height, width = img.size
     totalBits = width * height
+    mode = img.mode
 
     encryptedImage = np.zeros((512, 512, 3)) - 1
     encryptedR = encryptedImage[:, :, 0]
@@ -239,20 +233,20 @@ def encryptImage(sboxArray):
 
     # Step 1
     K = generateKey()
-    print("Key K: ", K)
+    # print("Key K: ", K)
     num = int(totalBits / 64)
     kl = calculate_kl(K, num)
-    print("kl: ", kl)
+    # print("kl: ", kl)
     r = calculate_r(K, totalBits)
-    print("r: ", r)
+    # print("r: ", r)
 
     # Step 2
     x0_init = np.zeros(CONST_N)
     for i in range(CONST_N):
         x0_init[i] = (K[i] + 0.1) / 256
-    print("init array: ", x0_init)
+    # print("init array: ", x0_init)
     x_array = generateNCML(x0_init)
-    print("N0 NCML: ", x_array)
+    # print("N0 NCML: ", x_array)
 
     # b = img2.reshape((8, 8, img2.shape[0] * img2.shape[1]))
     # Loop for encoding each block, it will be needed
@@ -266,19 +260,13 @@ def encryptImage(sboxArray):
     # print(B.shape)
     # print(I.shape)
 
-    # pseudo Step 3 (remove hen Step 3 will be finished)
-    # B = np.zeros((num, 8, 8))
-    # for i in range(num):
-    #     B[i] = np.random.randint(0, 255, size=(8, 8))
-    # print(B.shape)
-
     # Step 4 (i)
     randomNumbers, X0 = generatePseudoRandomNumbers(1, sboxArray)
     randomNumbers = np.reshape(randomNumbers, (8, 8))
 
     # print(B)
 
-    # (ii)
+    # (ii - v)
     C = np.zeros((num, 8, 8, 3), dtype=int)
     G = len(np.unique(I))
     for k in range(num):
@@ -293,12 +281,18 @@ def encryptImage(sboxArray):
                     C[k][i][j][c] = leftCyclicShift(int(x), int(y))
         for c in range(3):
             switchBlocks(C[k, :, :, c], calculateKNew(X0, num), kl, encryptedImage[:, :, :, c], num)
+            if k == num - 1:
+                encryptedImage[int(kl), :, :, c] = C[int(k), :, :, c]
+        print(k)
 
-    print(encryptedImage)
-    # print(C)
+    Red = unblockshaped(encryptedImage[:, :, :, 0], height, width)
+    Green = unblockshaped(encryptedImage[:, :, :, 1], height, width)
+    Blue = unblockshaped(encryptedImage[:, :, :, 2], height, width)
 
-    # encryptedImage = Image.fromarray(data.astype('uint8'), mode)
-    # encryptedImage.save("./images/result_enc.png")
+    encryptedImageToSave = np.stack((Red, Green, Blue), axis=2)
+    encryptedImageToSave = Image.fromarray(encryptedImageToSave.astype('uint8'), mode)
+    encryptedImageToSave.save("./images/result_enc.png")
+    return K, kl, r, x_array, encryptedImage
 
 
 def decryptImage(sboxArray):
@@ -336,8 +330,8 @@ def main():
     sboxArray = np.zeros(256, dtype=int)
     getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
     # print(sboxArray)
-    encryptImage(sboxArray)
-    # decryptImage(sboxArray)
+    K, kl, r, x_array, encryptedImage = encryptImage(sboxArray)
+    decryptImage(sboxArray)
 
 
 if __name__ == '__main__':
