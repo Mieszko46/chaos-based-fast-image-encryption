@@ -1,8 +1,10 @@
 import struct
 import sys
+import time
 from PIL import Image
 import numpy as np
 import copy
+import matplotlib.pyplot as plt
 
 CONST_N = 8
 CONST_EPSILON = 0.05
@@ -82,7 +84,6 @@ def generateArrayS(A):
     s = []
     for i in range(4):
         temp = np.zeros(16, dtype=int)
-        # print(A_copy)
         for i in range(16):
             if i % 4 == 0:
                 temp[i] = function_F(A_copy[i], A_copy[i + 1], A_copy[i + 2], A_copy[i + 3])
@@ -99,23 +100,20 @@ def generateArrayS(A):
 
 def generateArrayR(S, sbox):
     R = np.zeros(64, dtype=int)
-    # print(sbox.shape)
-    # print(S.shape)
     for i in range(len(S)):
-        R[i] = ((sbox[S[i]] ^ (sbox[(S[i] + 1) % 64])) + (sbox[(S[i] + 2) % 64] ^ sbox[(S[i] + 3) % 64])) % 256
+        R[i] = ((sbox[S[i]] ^ (sbox[(S[i] + 1) % 64])) + 
+                (sbox[(S[i] + 2) % 64] ^ sbox[(S[i] + 3) % 64])) % 256
     return R
 
 
 def generateKey():
     return np.random.randint(0, 10, size=16)
 
-
 def calculate_kl(key, num):
     Ki = key[0]
     for K_next in key[1:]:
         Ki = Ki ^ K_next
     return np.floor(Ki * (num / 256))
-
 
 def calculate_r(key, totalBits):
     Ki = key[0]
@@ -124,9 +122,7 @@ def calculate_r(key, totalBits):
     return (Ki % totalBits)
 
 
-def generatePseudoRandomNumbers(iterate, sboxArray):
-    # time = datetime.now()
-    x_init = np.random.rand(CONST_N)
+def generatePseudoRandomNumbers(iterate, sboxArray, x_init):
     A = np.zeros(16, dtype=int)
 
     for loop in range(iterate):
@@ -137,11 +133,8 @@ def generatePseudoRandomNumbers(iterate, sboxArray):
         x_init = x_array
 
     X0 = x_array[0]
-    # print("Array A: ", A)
     S = generateArrayS(A)
     R = generateArrayR(S, sboxArray)
-    # print("Array S: " + str(S))
-    # print("Array R: " + str(R))
     return R, X0
 
 
@@ -170,7 +163,6 @@ def unblockshaped(arr, h, w):
     If arr is of shape (n, nrows, ncols), n sublocks of shape (nrows, ncols),
     then the returned array preserves the "physical" layout of the sublocks.
     """
-    print(arr.shape)
     n, nrows, ncols = arr.shape
     return (arr.reshape(h // nrows, -1, nrows, ncols)
             .swapaxes(1, 2)
@@ -191,6 +183,15 @@ def leftCyclicShift(shift, sequence):
     return shifted_num
 
 
+def rightCyclicShift(shift, sequence):
+    if sequence == 0:
+        return sequence
+    sequence_bits = sequence.bit_length()
+    shift = shift % sequence_bits
+    shifted_num = ((sequence >> shift) | (sequence << (sequence_bits - shift))) & ((1 << sequence_bits) - 1)
+    return shifted_num
+
+
 def calculateKNew(x0, num):
     return np.floor(x0 * num)
 
@@ -202,7 +203,6 @@ def isNotOccupied(blockValue):
 
 
 def switchBlocks(block, kNew, kL, encryptedBlocks, num):
-    # print("knew: ", kNew, kL)
     kNew = int(kNew)
     if kNew != kL and isNotOccupied(encryptedBlocks[kNew][0][0]):
         encryptedBlocks[kNew, :, :] = block
@@ -216,8 +216,22 @@ def switchBlocks(block, kNew, kL, encryptedBlocks, num):
                 continue
 
 
+def switchBlocksDecrypt(block, kNew, kL, encryptedBlocks, num):
+    kNew = int(kNew)
+    if kNew == kL and not(isNotOccupied(encryptedBlocks[kNew][0][0])):
+        encryptedBlocks[kNew, :, :] = block
+    else:
+        while True:
+            kNew = (kNew + 1) % num
+            if isNotOccupied(encryptedBlocks[kNew][0][0]):
+                encryptedBlocks[kNew, :, :] = block
+                break
+            else:
+                continue
+
+
 def encryptImage(sboxArray):
-    img = Image.open("./images/lena.png", 'r')
+    img = Image.open("./images/castle.png", 'r')
     height, width = img.size
     totalBits = width * height
     mode = img.mode
@@ -233,38 +247,26 @@ def encryptImage(sboxArray):
 
     # Step 1
     K = generateKey()
-    # print("Key K: ", K)
     num = int(totalBits / 64)
     kl = calculate_kl(K, num)
-    # print("kl: ", kl)
     r = calculate_r(K, totalBits)
-    # print("r: ", r)
 
     # Step 2
     x0_init = np.zeros(CONST_N)
     for i in range(CONST_N):
         x0_init[i] = (K[i] + 0.1) / 256
-    # print("init array: ", x0_init)
-    x_array = generateNCML(x0_init)
-    # print("N0 NCML: ", x_array)
+    x_init_random = generateNCML(x0_init)
 
-    # b = img2.reshape((8, 8, img2.shape[0] * img2.shape[1]))
-    # Loop for encoding each block, it will be needed
-    # for i in range(num):
-    # Step 3  what the fck is going on in this step
+    # Step 3 
     I = np.array(img)
     blocksR = blockshaped(I[:, :, 0], 8, 8)
     blocksG = blockshaped(I[:, :, 1], 8, 8)
     blocksB = blockshaped(I[:, :, 2], 8, 8)
     B = np.stack((blocksR, blocksG, blocksB), axis=3)
-    # print(B.shape)
-    # print(I.shape)
 
     # Step 4 (i)
-    randomNumbers, X0 = generatePseudoRandomNumbers(1, sboxArray)
+    randomNumbers, X0 = generatePseudoRandomNumbers(1, sboxArray, x_init_random)
     randomNumbers = np.reshape(randomNumbers, (8, 8))
-
-    # print(B)
 
     # (ii - v)
     C = np.zeros((num, 8, 8, 3), dtype=int)
@@ -283,7 +285,7 @@ def encryptImage(sboxArray):
             switchBlocks(C[k, :, :, c], calculateKNew(X0, num), kl, encryptedImage[:, :, :, c], num)
             if k == num - 1:
                 encryptedImage[int(kl), :, :, c] = C[int(k), :, :, c]
-        print(k)
+        # print(k)
 
     Red = unblockshaped(encryptedImage[:, :, :, 0], height, width)
     Green = unblockshaped(encryptedImage[:, :, :, 1], height, width)
@@ -292,47 +294,105 @@ def encryptImage(sboxArray):
     encryptedImageToSave = np.stack((Red, Green, Blue), axis=2)
     encryptedImageToSave = Image.fromarray(encryptedImageToSave.astype('uint8'), mode)
     encryptedImageToSave.save("./images/result_enc.png")
-    return K, kl, r, x_array, encryptedImage
+    return K, kl, r, x_init_random, encryptedImage, C
 
 
-def decryptImage(sboxArray):
+def decryptImage(sboxArray, K, kl, r, x_init_random, encryptedImage, C):
     img = Image.open("./images/result_enc.png", 'r')
     height, width = img.size
     totalBits = width * height
+    mode = img.mode
+    num = int(totalBits / 64)
 
-    data = np.array(list(img.getdata()), dtype=int)
-    # getSbox(sboxArray, ".\sblocks\sbox_08x08_20130117_030729___Inverse.SBX")
-    # inverseSbox = sboxArray
-    inverseSbox = generateInverseSbox(sboxArray)
+    decryptedImage = np.zeros((512, 512, 3)) - 1
+    encryptedR = decryptedImage[:, :, 0]
+    encryptedG = decryptedImage[:, :, 1]
+    encryptedB = decryptedImage[:, :, 2]
+    encryptedR = blockshaped(encryptedR, 8, 8)
+    encryptedG = blockshaped(encryptedG, 8, 8)
+    encryptedB = blockshaped(encryptedB, 8, 8)
+    decryptedImage = np.stack((encryptedR, encryptedG, encryptedB), axis=3)
 
-    try:
-        np.array(img).shape[2]
+    # Step 4 (ii)
+    randomNumbers, X0 = generatePseudoRandomNumbers(1, sboxArray, x_init_random)
+    randomNumbers = np.reshape(randomNumbers, (8, 8))
 
-    except:
-        for bit in range(totalBits):
-            data[bit] = inverseSbox[data[bit]]
-        data = data.reshape(width, height)
-        mode = 'L'
+    # Step 4 (iii)
+    P = np.zeros((num, 8, 8, 3), dtype=int)
+    I = np.array(img)
+    G = len(np.unique(I))
+    for k in range(num):
+        for c in range(3):
+            switchBlocksDecrypt(encryptedImage[k, :, :, c], calculateKNew(X0, num), kl, decryptedImage[:, :, :, c], num)
+            # if k == num - 1:
+            #     decryptedImage[int(kl), :, :, c] = C[int(k), :, :, c]
+        if k == 0:
+            for j in range(8):
+                P[k][0][j] = K[j + 8]
+        for i in range(8):
+            for j in range(8):
+                for c in range(3):
+                    x = C[k][i][j][c]
+                    y = decimalLSB3(x) * int(C[k][i - 1][(j - 1) % 8][c]) ^ int(randomNumbers[i][j])
+                    P[k][i][j][c] = int(randomNumbers[i][j]) ^ (rightCyclicShift(int(x), int(y)) - C[k][i - 1][j][c] + G) % G
+        # print(k)
 
-    else:
-        channels = np.array(img).shape[2]
-        for bit in range(totalBits):
-            for c in range(channels):
-                data[bit][c] = inverseSbox[data[bit][c]]
-        data = data.reshape(width, height, channels)
-        mode = img.mode
+    Red = unblockshaped(P[:, :, :, 0], height, width)
+    Green = unblockshaped(P[:, :, :, 1], height, width)
+    Blue = unblockshaped(P[:, :, :, 2], height, width)
 
-    decryptedImage = Image.fromarray(data.astype('uint8'), mode)
+    decryptedImage = np.stack((Red, Green, Blue), axis=2)
+    decryptedImage = Image.fromarray(decryptedImage.astype('uint8'), mode)
     decryptedImage.save("./images/result_dec.png")
+
+
+def RED(R): return '#%02x%02x%02x'%(R,0,0)
+def GREEN(G): return '#%02x%02x%02x'%(0,G,0)
+def BLUE(B):return '#%02x%02x%02x'%(0,0,B)
+
+
+def showHistograms():
+    img = Image.open("./images/result_enc.png", 'r')
+    data = np.array(list(img.getdata()), dtype=int)
+
+    img2 = Image.open("./images/result_dec.png", 'r')
+    data2 = np.array(list(img2.getdata()), dtype=int)
+
+    fig, axs = plt.subplots(1, 2, sharey=True, tight_layout=True)
+    
+    axs[0].hist(data, 
+        bins=256, 
+        range=(0,256),          
+        density=True, 
+        stacked=True, 
+        color=("#FF3333", "#33FF56", "#335CFF"))
+
+    axs[1].hist(data2, 
+        bins=256, 
+        range=(0,256),          
+        density=True, 
+        stacked=True, 
+        color=("#FF3333", "#33FF56", "#335CFF"))
+    plt.show() 
 
 
 def main():
     sboxArray = np.zeros(256, dtype=int)
     getSbox(sboxArray, '.\s-blocks\sbox_08x08_20130117_030729__Original.SBX')
-    # print(sboxArray)
-    K, kl, r, x_array, encryptedImage = encryptImage(sboxArray)
-    decryptImage(sboxArray)
 
+    startTime = time.time()
+    K, kl, r, x_init, encryptedImage, C = encryptImage(sboxArray)
+    endTime = time.time()
+    elapsedTime = endTime - startTime
+    print("Encoding time: ", elapsedTime, "seconds")
+
+    startTime = time.time()
+    decryptImage(sboxArray, K, kl, r, x_init, encryptedImage, C)
+    endTime = time.time()
+    elapsedTime = endTime - startTime
+    print("Decoding time: ", elapsedTime, "seconds")
+
+    showHistograms()
 
 if __name__ == '__main__':
     main()
